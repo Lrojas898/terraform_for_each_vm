@@ -33,3 +33,11 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# Ignore backup directories and reports
+terraform-state-backup/
+drift-reports/
+
+# Ignore environment files
+.env
+.env.local
