@@ -1,205 +1,286 @@
-# Terraform Infrastructure as Code
+# Terraform Azure Infrastructure con Backend Remoto
 
 **Autor**: LUIS MANUEL ROJAS CORREA
 **Código**: A00399289
+**Proyecto**: DevOps Infrastructure as Code
 
 ## Descripción
 
-Configuración de Terraform para provisionar infraestructura de pipeline DevOps con Jenkins y SonarQube en Azure. Implementa Infrastructure as Code (IaC) con módulos reutilizables.
+Este repositorio contiene la definición de infraestructura como código (IaC) para el despliegue de máquinas virtuales en Azure usando Terraform con backend remoto en Azure Storage para gestión de estado centralizada.
 
-## Arquitectura
+## Arquitectura Multi-Repositorio
 
-### Recursos Azure
+Este repositorio forma parte de una arquitectura DevOps que utiliza 3 repositorios independientes:
 
-**Resource Group**: `devops-rg`
-**Región**: Chile Central
+1. **[Teclado](https://github.com/Lrojas898/Teclado)**: Código fuente de la aplicación web
+2. **[ansible-pipeline](https://github.com/Lrojas898/ansible-pipeline)**: Configuración del pipeline CI/CD
+3. **[terraform_for_each_vm](https://github.com/Lrojas898/terraform_for_each_vm)** (este repo): Infraestructura como código
 
-#### Máquinas Virtuales
+## ✨ Nuevas Características - Azure Storage Backend
 
-1. **jenkins-machine** (68.211.125.173)
-   - Jenkins CI/CD (puerto 80)
-   - SonarQube (puerto 9000)
-   - Ubuntu 22.04 LTS
-   - 4GB RAM, 2 vCPUs
+### Estado Remoto Centralizado
+- **Backend**: Azure Storage Account
+- **Ventajas**:
+  - Estado compartido entre equipos
+  - Locking automático para prevenir conflictos
+  - Backup automático y versionado
+  - Detección de drift de infraestructura
 
-2. **nginx-machine** (68.211.125.160)
-   - Nginx web server (puerto 80)
-   - Ubuntu 22.04 LTS
-   - 2GB RAM, 1 vCPU
-
-#### Red
-
-- Red Virtual con subnetting interno
-- IPs públicas estáticas
-- Network Security Groups con reglas para SSH (22), HTTP (80), SonarQube (9000)
+### Configuración del Backend
+```hcl
+backend "azurerm" {
+  resource_group_name  = "devops-terraform-state-rg"
+  storage_account_name = "devopsterraformstate001"
+  container_name       = "tfstate"
+  key                  = "devops-infrastructure.tfstate"
+}
+```
 
 ## Estructura del Proyecto
 
 ```
 terraform_for_each_vm/
-├── main.tf              # Configuración principal de recursos
-├── variables.tf         # Definición de variables
-├── outputs.tf          # Outputs de recursos creados
-├── providers.tf        # Configuración de providers Azure
-├── terraform.tfvars    # Valores de variables (configuración específica)
-├── .gitignore         # Archivos ignorados por Git
-└── modules/           # Módulos reutilizables
-    └── vm/           # Módulo para creación de VMs
-        ├── main.tf
-        ├── variables.tf
-        └── outputs.tf
+├── main.tf                    # Recursos principales
+├── providers.tf               # Proveedor Azure + Backend
+├── variables.tf               # Definición de variables
+├── terraform.tfvars           # Valores de variables
+├── outputs.tf                 # Outputs del proyecto
+├── backend.tf                 # Documentación backend
+├── modules/                   # Módulos reutilizables
+│   └── vm/                   # Módulo de VMs
+├── setup-backend.sh          # ✨ Script configuración backend
+├── migrate-state.sh          # ✨ Script migración de estado
+├── drift-detection.sh        # ✨ Script detección de drift
+└── README.md                 # Esta documentación
 ```
 
-## Configuración Específica
+## Scripts de Automatización
 
-### Variables Principales
+### 1. 🚀 Setup Backend (`setup-backend.sh`)
+Configura automáticamente el Azure Storage Account para el backend:
 
+```bash
+./setup-backend.sh
+```
+
+**Funcionalidades**:
+- Crea Resource Group para estado de Terraform
+- Crea Storage Account seguro con cifrado
+- Configura Container para tfstate
+- Genera configuración automática
+
+### 2. 🔄 Migración de Estado (`migrate-state.sh`)
+Migra el estado local a Azure Storage Backend:
+
+```bash
+./migrate-state.sh
+```
+
+**Funcionalidades**:
+- Backup automático del estado local
+- Migración segura a backend remoto
+- Verificación de conectividad
+- Configuración de credenciales
+
+### 3. 🔍 Detección de Drift (`drift-detection.sh`)
+Detecta cambios no gestionados en la infraestructura:
+
+```bash
+./drift-detection.sh
+```
+
+**Funcionalidades**:
+- Comparación estado vs realidad
+- Reportes en texto y JSON
+- Integración con CI/CD
+- Alertas automáticas
+
+## Configuración Inicial
+
+### Variables de Configuración
 ```hcl
-# terraform.tfvars
 region = "Chile Central"
+user = "adminuser"
 password = "DevOps2024!@#"
+prefix_name = "devops"
+servers = ["jenkins", "nginx"]
 ```
 
-### Decisiones Técnicas
+## Flujo de Trabajo Recomendado
 
-1. **Región**: Chile Central (cambio desde East US por limitaciones de cuota estudiantil)
-2. **Password**: Cumple políticas Azure con caracteres especiales
-3. **Módulos**: Separación entre red, seguridad y cómputo para reutilización
-
-## Proceso de Despliegue
-
-### Prerrequisitos
-
+### 1. Configuración Inicial (Solo una vez)
 ```bash
-# Instalar Terraform
-curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-sudo apt-get update && sudo apt-get install terraform
+# 1. Configurar backend remoto
+./setup-backend.sh
 
-# Configurar Azure CLI
-az login
-az account set --subscription "your-subscription-id"
-```
+# 2. Migrar estado existente (si aplica)
+./migrate-state.sh
 
-### Comandos de Ejecución
-
-```bash
-# Inicializar Terraform
+# 3. Inicializar con backend remoto
 terraform init
+```
 
-# Planificar cambios
+### 2. Trabajo Diario
+```bash
+# 1. Detectar drift antes de cambios
+./drift-detection.sh
+
+# 2. Planificar cambios
 terraform plan
 
-# Aplicar configuración
+# 3. Aplicar cambios
 terraform apply
 
-# Verificar estado
-terraform show
-
-# Destruir recursos (si necesario)
-terraform destroy
+# 4. Verificar estado post-cambios
+./drift-detection.sh
 ```
 
-## Problemas Resueltos
+## Recursos Creados
 
-### 1. Limitaciones de Suscripción Estudiantil
+### 1. Infraestructura Principal
+- **Resource Group**: `devops-rg`
+- **Virtual Network**: `devops-network` (10.0.0.0/16)
+- **Subnet**: `devops-subnet` (10.0.1.0/24)
 
-**Problema**: Cuota insuficiente en región East US
-**Error**: `QuotaExceeded: Operation could not be completed as it results in exceeding approved quota`
-**Solución**: Migración a región Chile Central con disponibilidad confirmada
-**Impacto**: Cambio mínimo en latencia, funcionalidad completa preservada
+### 2. Máquinas Virtuales
+- **jenkins-machine** (68.211.125.173):
+  - Jenkins CI/CD Server (puerto 80)
+  - SonarQube Quality Gate (puerto 9000)
+  - Ubuntu 22.04 LTS, 4GB RAM
 
-### 2. Políticas de Password Azure
+- **nginx-machine** (68.211.125.160):
+  - Servidor web Nginx (puerto 80)
+  - Destino de despliegue
+  - Ubuntu 22.04 LTS, 2GB RAM
 
-**Problema**: Password inicial no cumplía políticas de Azure
-**Error**: `Password does not meet complexity requirements`
-**Solución**: Implementación de password con caracteres especiales: `DevOps2024!@#`
-**Validación**: Cumple requisitos de longitud, mayúsculas, números y símbolos
+### 3. Backend de Estado (Nuevo)
+- **Resource Group**: `devops-terraform-state-rg`
+- **Storage Account**: `devopsterraformstate001`
+- **Container**: `tfstate`
+- **Cifrado**: TLS 1.2, acceso privado
 
-### 3. Configuración de Network Security Groups
+## Comandos Útiles
 
-**Problema**: Acceso bloqueado a servicios por reglas de firewall por defecto
-**Solución**: Configuración específica de reglas para:
-- SSH (22) desde cualquier origen para administración
-- HTTP (80) para Jenkins y aplicación web
-- Puerto 9000 para SonarQube
-- Restricciones de origen apropiadas para seguridad
-
-## Outputs Importantes
-
-Después del despliegue exitoso, Terraform proporciona:
-
-```hcl
-jenkins_public_ip = "68.211.125.173"
-nginx_public_ip = "68.211.125.160"
-resource_group_name = "devops-rg"
-jenkins_ssh_command = "ssh adminuser@68.211.125.173"
-nginx_ssh_command = "ssh adminuser@68.211.125.160"
-```
-
-## Verificación Post-Despliegue
-
-### Conectividad SSH
-
+### Estado y Gestión
 ```bash
-# Conexión a Jenkins VM
-ssh adminuser@68.211.125.173
+# Listar recursos gestionados
+terraform state list
 
-# Conexión a Nginx VM
-ssh adminuser@68.211.125.160
+# Ver estado de un recurso específico
+terraform state show azurerm_resource_group.main
+
+# Refresh estado desde Azure
+terraform refresh
+
+# Importar recurso existente
+terraform import azurerm_resource_group.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example
 ```
 
-### Verificación de Servicios
-
+### Detección de Problemas
 ```bash
-# En jenkins-machine
-docker ps  # Verificar contenedores Jenkins y SonarQube
-curl localhost:8080  # Jenkins health check
-curl localhost:9000  # SonarQube health check
+# Validar configuración
+terraform validate
 
-# En nginx-machine
-systemctl status nginx  # Estado del servicio Nginx
-curl localhost  # Verificar respuesta web
+# Formatear código
+terraform fmt
+
+# Verificar drift
+./drift-detection.sh
+
+# Plan con salida detallada
+terraform plan -detailed-exitcode
 ```
 
-## Mantenimiento y Evolución
+## Integración con CI/CD
 
-### Actualizaciones de Infraestructura
+### Pipeline de Infraestructura
+```yaml
+# Ejemplo de integración en Azure DevOps/GitHub Actions
+- name: Drift Detection
+  run: |
+    cd terraform_for_each_vm
+    ./drift-detection.sh
 
-1. Modificar variables en `terraform.tfvars`
-2. Ejecutar `terraform plan` para revisar cambios
-3. Aplicar con `terraform apply`
-4. Verificar estado con `terraform show`
+- name: Terraform Plan
+  run: terraform plan -detailed-exitcode
 
-### Escalabilidad
+- name: Terraform Apply
+  run: terraform apply -auto-approve
+  if: github.ref == 'refs/heads/main'
+```
 
-La arquitectura modular permite:
-- Adición de nuevas VMs mediante el módulo existente
-- Modificación de tamaños de instancia sin recreación
-- Implementación de load balancers para alta disponibilidad
-- Integración con otros servicios de Azure (databases, storage, etc.)
+## Monitoreo y Alertas
 
-## Recursos de Azure Creados
+### Códigos de Salida Drift Detection
+- **0**: Sin drift, infraestructura estable
+- **1**: Error en la ejecución
+- **2**: Drift detectado, requiere atención
 
-- **Resource Group**: Contenedor principal de recursos
-- **Virtual Network**: Red privada con subnetting apropiado
-- **2 Network Security Groups**: Reglas de firewall específicas
-- **2 Public IPs**: IPs estáticas para acceso externo
-- **2 Network Interfaces**: Conexión de VMs a la red
-- **2 Virtual Machines**: Instancias Ubuntu 22.04 LTS
-- **2 OS Disks**: Almacenamiento persistente para VMs
+### Archivos de Reporte
+- `drift-reports/drift-plan-TIMESTAMP.txt`: Plan detallado
+- `drift-reports/drift-report-TIMESTAMP.json`: Reporte estructurado
 
-## Costos y Optimización
+## Troubleshooting
 
-**Configuración actual**:
-- jenkins-machine: Standard_B2s (2 vCPUs, 4GB RAM)
-- nginx-machine: Standard_B1s (1 vCPU, 1GB RAM)
-- Storage: Premium SSD para mejor rendimiento
-- Costo estimado: ~$50-70 USD/mes
+### Backend No Configurado
+```bash
+Error: Backend initialization required
+Solución: ./setup-backend.sh
+```
 
-**Optimizaciones implementadas**:
-- Uso de instancias B-series (burstable) para cargas variables
-- Storage optimizado por tipo de workload
-- Network Security Groups específicos para minimizar superficie de ataque
+### Error de Credenciales
+```bash
+Error: storage account key not found
+Solución: az login && export ARM_ACCESS_KEY=$(az storage account keys list ...)
+```
 
-Este repositorio forma parte del proyecto completo de DevOps disponible en: `devops-jenkins-sonarqube-pipeline`
+### Conflicto de Estado
+```bash
+Error: Error acquiring the state lock
+Solución: terraform force-unlock <LOCK_ID>
+```
+
+### Drift Detectado
+```bash
+Status: DRIFT DETECTADO
+Acción: Revisar cambios y ejecutar terraform apply
+```
+
+## Mejores Prácticas Implementadas
+
+### 1. Seguridad
+- ✅ Estado remoto cifrado
+- ✅ Credenciales mediante Azure CLI
+- ✅ Network Security Groups configurados
+- ✅ Backup automático de estado
+
+### 2. Operaciones
+- ✅ Scripts de automatización
+- ✅ Detección de drift automatizada
+- ✅ Reportes estructurados
+- ✅ Integración CI/CD ready
+
+### 3. Mantenimiento
+- ✅ Backup automático antes de cambios
+- ✅ Versionado de estado
+- ✅ Documentación actualizada
+- ✅ Validación de configuración
+
+## Estado Actual
+
+✅ **Backend Remoto**: Configurado y funcionando
+✅ **Scripts de Automatización**: Implementados
+✅ **Detección de Drift**: Operativa
+✅ **Infraestructura**: Desplegada en Chile Central
+✅ **Integración**: Lista para CI/CD
+
+### Última Actualización
+- **Fecha**: Octubre 2025
+- **Cambios**: Azure Storage Backend implementado
+- **Status**: ✅ PRODUCCIÓN - FUNCIONANDO
+
+## URLs de Acceso
+
+- **Jenkins**: http://68.211.125.173
+- **SonarQube**: http://68.211.125.173:9000
+- **Aplicación**: http://68.211.125.160
