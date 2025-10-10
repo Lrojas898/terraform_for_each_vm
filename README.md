@@ -1,15 +1,15 @@
-# Terraform Infrastructure as Code - DevOps Pipeline
+# Terraform Infrastructure as Code
 
 **Autor**: LUIS MANUEL ROJAS CORREA
 **Código**: A00399289
 
 ## Descripción
 
-Este repositorio contiene la configuración de Terraform para provisionar la infraestructura necesaria para el pipeline DevOps con Jenkins y SonarQube en Azure. Implementa el patrón Infrastructure as Code (IaC) utilizando módulos reutilizables para crear y gestionar recursos de Azure de manera reproducible.
+Configuración de Terraform para provisionar infraestructura de pipeline DevOps con Jenkins y SonarQube en Azure. Implementa Infrastructure as Code (IaC) con módulos reutilizables.
 
-## Arquitectura de Infraestructura
+## Arquitectura
 
-### Recursos Azure Desplegados
+### Recursos Azure
 
 **Resource Group**: `devops-rg`
 **Región**: Chile Central
@@ -17,25 +17,21 @@ Este repositorio contiene la configuración de Terraform para provisionar la inf
 #### Máquinas Virtuales
 
 1. **jenkins-machine** (68.211.125.173)
-   - Servidor Jenkins CI/CD (puerto 80)
-   - Servidor SonarQube (puerto 9000)
+   - Jenkins CI/CD (puerto 80)
+   - SonarQube (puerto 9000)
    - Ubuntu 22.04 LTS
    - 4GB RAM, 2 vCPUs
-   - Configurada con Docker y Docker Compose
 
 2. **nginx-machine** (68.211.125.160)
-   - Servidor web Nginx (puerto 80)
-   - Destino de despliegue de aplicaciones
+   - Nginx web server (puerto 80)
    - Ubuntu 22.04 LTS
    - 2GB RAM, 1 vCPU
 
-### Configuración de Red
+#### Red
 
-- **Red Virtual**: Subnetting dedicado para comunicación interna
-- **IPs Públicas Estáticas**: Asignadas a ambas VMs
-- **Network Security Groups**:
-  - Reglas para SSH (22), HTTP (80), SonarQube (9000)
-  - Configuración de seguridad específica por servicio
+- Red Virtual con subnetting interno
+- IPs públicas estáticas
+- Network Security Groups con reglas para SSH (22), HTTP (80), SonarQube (9000)
 
 ## Estructura del Proyecto
 
@@ -64,22 +60,11 @@ region = "Chile Central"
 password = "DevOps2024!@#"
 ```
 
-### Decisiones Técnicas Implementadas
+### Decisiones Técnicas
 
-1. **Cambio de Región**
-   - **Original**: East US
-   - **Implementado**: Chile Central
-   - **Razón**: Limitaciones de cuota en suscripción Azure for Students
-
-2. **Password Policy**
-   - Cumplimiento con políticas de seguridad de Azure
-   - Caracteres especiales requeridos
-   - Longitud mínima establecida
-
-3. **Arquitectura Modular**
-   - Uso de módulos Terraform para reutilización
-   - Separación de concerns entre red, seguridad y cómputo
-   - Facilita mantenimiento y escalabilidad
+1. **Región**: Chile Central (cambio desde East US por limitaciones de cuota estudiantil)
+2. **Password**: Cumple políticas Azure con caracteres especiales
+3. **Módulos**: Separación entre red, seguridad y cómputo para reutilización
 
 ## Proceso de Despliegue
 
