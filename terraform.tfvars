@@ -1,5 +1,5 @@
-region="East US"
+region="Chile Central"
 user = "adminuser"
-password = "#########"
+password = "DevOps2024!@#"
 prefix_name = "devops"
 servers = [ "jenkins", "nginx" ]
