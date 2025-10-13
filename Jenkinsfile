@@ -101,30 +101,58 @@ pipeline {
                 dir(env.TF_WORKSPACE) {
                     echo 'BACKEND - Configurando backend de Azure Storage'
                     script {
-                        sh '''
-                            echo "Instalando Azure CLI si es necesario..."
-                            if ! command -v az &> /dev/null; then
-                                curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-                            fi
-
-                            echo "Verificando Azure Storage Backend..."
-                            if az storage account show --name ${TF_BACKEND_STORAGE_ACCOUNT} --resource-group ${TF_BACKEND_RESOURCE_GROUP} &> /dev/null; then
-                                echo "✓ Azure Storage Backend disponible. Obteniendo credenciales..."
-                                az storage account keys list --resource-group ${TF_BACKEND_RESOURCE_GROUP} --account-name ${TF_BACKEND_STORAGE_ACCOUNT} --query '[0].value' -o tsv > ${ARM_ACCESS_KEY_FILE}
-                                echo "✓ Credenciales de Azure Storage guardadas"
-                            else
-                                echo "⚠️ Azure Storage Backend no encontrado. Ejecutando script de configuración..."
-                                if [ -f "./setup-backend.sh" ]; then
-                                    chmod +x ./setup-backend.sh
-                                    ./setup-backend.sh
-                                    # Re-intentar obtener la clave después de crear el backend
-                                    az storage account keys list --resource-group ${TF_BACKEND_RESOURCE_GROUP} --account-name ${TF_BACKEND_STORAGE_ACCOUNT} --query '[0].value' -o tsv > ${ARM_ACCESS_KEY_FILE}
-                                else
-                                    echo "❌ Script setup-backend.sh no encontrado"
-                                    exit 1
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
+                        ]) {
+                            sh '''
+                                echo "Instalando Azure CLI si es necesario..."
+                                if ! command -v az &> /dev/null; then
+                                    echo "Azure CLI no encontrado. Instalando..."
+                                    apt-get update -qq
+                                    apt-get install -y -qq ca-certificates curl apt-transport-https lsb-release gnupg
+                                    mkdir -p /etc/apt/keyrings
+                                    curl -sLS https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | tee /etc/apt/keyrings/microsoft.gpg > /dev/null
+                                    echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/azure-cli.list
+                                    apt-get update -qq
+                                    apt-get install -y -qq azure-cli
                                 fi
-                            fi
-                        '''
+
+                                echo "Azure CLI version:"
+                                az version
+
+                                echo "Configurando autenticación con Service Principal..."
+                                az login --service-principal \
+                                    --username ${ARM_CLIENT_ID} \
+                                    --password ${ARM_CLIENT_SECRET} \
+                                    --tenant ${ARM_TENANT_ID}
+
+                                echo "✓ Autenticado exitosamente con Service Principal"
+
+                                echo "Verificando Azure Storage Backend..."
+                                if az storage account show --name ${TF_BACKEND_STORAGE_ACCOUNT} --resource-group ${TF_BACKEND_RESOURCE_GROUP} &> /dev/null; then
+                                    echo "✓ Azure Storage Backend disponible. Obteniendo credenciales..."
+                                    az storage account keys list \
+                                        --resource-group ${TF_BACKEND_RESOURCE_GROUP} \
+                                        --account-name ${TF_BACKEND_STORAGE_ACCOUNT} \
+                                        --query '[0].value' -o tsv > ${ARM_ACCESS_KEY_FILE}
+                                    echo "✓ Credenciales de Azure Storage guardadas"
+                                else
+                                    echo "⚠️ Azure Storage Backend no encontrado. Ejecutando script de configuración..."
+                                    if [ -f "./setup-backend.sh" ]; then
+                                        chmod +x ./setup-backend.sh
+                                        ./setup-backend.sh
+                                        az storage account keys list \
+                                            --resource-group ${TF_BACKEND_RESOURCE_GROUP} \
+                                            --account-name ${TF_BACKEND_STORAGE_ACCOUNT} \
+                                            --query '[0].value' -o tsv > ${ARM_ACCESS_KEY_FILE}
+                                    else
+                                        echo "❌ Script setup-backend.sh no encontrado"
+                                        exit 1
+                                    fi
+                                fi
+                            '''
+                        }
                     }
                 }
             }
@@ -135,19 +163,24 @@ pipeline {
                 dir(env.TF_WORKSPACE) {
                     echo 'INIT - Inicializando Terraform con backend remoto'
                     script {
-                        sh '''
-                            export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
-                            if [ -z "$ARM_ACCESS_KEY" ]; then
-                                echo "❌ No se pudo obtener la ARM_ACCESS_KEY."
-                                exit 1
-                            fi
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
+                        ]) {
+                            sh '''
+                                export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
+                                if [ -z "$ARM_ACCESS_KEY" ]; then
+                                    echo "❌ No se pudo obtener la ARM_ACCESS_KEY."
+                                    exit 1
+                                fi
 
-                            echo "Inicializando Terraform con backend de Azure Storage..."
-                            terraform init -reconfigure
+                                echo "Inicializando Terraform con backend de Azure Storage..."
+                                terraform init -reconfigure
 
-                            echo "✓ Terraform inicializado con backend remoto"
-                            terraform state list || echo "Estado remoto vacío o no accesible"
-                        '''
+                                echo "✓ Terraform inicializado con backend remoto"
+                                terraform state list || echo "Estado remoto vacío o no accesible"
+                            '''
+                        }
                     }
                 }
             }
@@ -158,30 +191,35 @@ pipeline {
                 dir(env.TF_WORKSPACE) {
                     echo 'PLAN - Generando plan de ejecución de Terraform'
                     script {
-                        sh '''
-                            export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
-                            
-                            if [ -f "./drift-detection.sh" ]; then
-                                echo "Ejecutando detección de drift..."
-                                chmod +x ./drift-detection.sh
-                                ./drift-detection.sh || echo "Detección de drift completada con advertencias"
-                            fi
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
+                        ]) {
+                            sh '''
+                                export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
 
-                            echo "Actualizando estado desde Azure y generando plan..."
-                            terraform refresh
-                            terraform plan -detailed-exitcode -out=tfplan
-                            PLAN_EXIT_CODE=$?
+                                if [ -f "./drift-detection.sh" ]; then
+                                    echo "Ejecutando detección de drift..."
+                                    chmod +x ./drift-detection.sh
+                                    ./drift-detection.sh || echo "Detección de drift completada con advertencias"
+                                fi
 
-                            case $PLAN_EXIT_CODE in
-                                0) echo "✓ No hay cambios que aplicar" ;;
-                                1) echo "❌ Error en la generación del plan"; exit 1 ;;
-                                2) 
-                                  echo "⚠️ Cambios detectados - Plan generado exitosamente"
-                                  terraform show -no-color tfplan > plan-output.txt
-                                  echo "Plan guardado en: plan-output.txt"
-                                  ;;
-                            esac
-                        '''
+                                echo "Actualizando estado desde Azure y generando plan..."
+                                terraform refresh
+                                terraform plan -detailed-exitcode -out=tfplan
+                                PLAN_EXIT_CODE=$?
+
+                                case $PLAN_EXIT_CODE in
+                                    0) echo "✓ No hay cambios que aplicar" ;;
+                                    1) echo "❌ Error en la generación del plan"; exit 1 ;;
+                                    2)
+                                      echo "⚠️ Cambios detectados - Plan generado exitosamente"
+                                      terraform show -no-color tfplan > plan-output.txt
+                                      echo "Plan guardado en: plan-output.txt"
+                                      ;;
+                                esac
+                            '''
+                        }
                     }
                 }
             }
@@ -192,19 +230,24 @@ pipeline {
                 dir(env.TF_WORKSPACE) {
                     echo 'APPLY - Aplicando cambios de infraestructura'
                     script {
-                        sh '''
-                            if [ -f "tfplan" ]; then
-                                export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
-                                echo "Aplicando plan de Terraform..."
-                                terraform apply -auto-approve tfplan
-                                echo "✓ Cambios aplicados exitosamente"
-                                
-                                echo "Outputs de la infraestructura:"
-                                terraform output
-                            else
-                                echo "No hay plan para aplicar"
-                            fi
-                        '''
+                        withCredentials([
+                            string(credentialsId: 'azure-client-id', variable: 'ARM_CLIENT_ID'),
+                            string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
+                        ]) {
+                            sh '''
+                                if [ -f "tfplan" ]; then
+                                    export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
+                                    echo "Aplicando plan de Terraform..."
+                                    terraform apply -auto-approve tfplan
+                                    echo "✓ Cambios aplicados exitosamente"
+
+                                    echo "Outputs de la infraestructura:"
+                                    terraform output
+                                else
+                                    echo "No hay plan para aplicar"
+                                fi
+                            '''
+                        }
                     }
                 }
             }
