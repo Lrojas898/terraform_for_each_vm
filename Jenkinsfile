@@ -73,7 +73,7 @@ pipeline {
                             echo "Instalando Terraform si es necesario..."
                             if ! command -v terraform &> /dev/null; then
                                 wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
-                                unzip -q terraform_1.6.2_linux_amd64.zip
+                                unzip -o -q terraform_1.6.2_linux_amd64.zip
                                 chmod +x terraform
                                 export PATH=$(pwd):$PATH
                             fi
@@ -170,11 +170,15 @@ pipeline {
                             sh '''
                                 # Asegurar que Terraform esté disponible
                                 if ! command -v terraform &> /dev/null; then
-                                    echo "Instalando Terraform..."
-                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
-                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    echo "Configurando Terraform..."
+                                    if [ ! -f terraform ]; then
+                                        echo "Descargando Terraform..."
+                                        wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                        unzip -o -q terraform_1.6.2_linux_amd64.zip
+                                    fi
                                     chmod +x terraform
                                     export PATH=$(pwd):$PATH
+                                    echo "Terraform version: $(./terraform version)"
                                 fi
 
                                 export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
@@ -207,11 +211,15 @@ pipeline {
                             sh '''
                                 # Asegurar que Terraform esté disponible
                                 if ! command -v terraform &> /dev/null; then
-                                    echo "Instalando Terraform..."
-                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
-                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    echo "Configurando Terraform..."
+                                    if [ ! -f terraform ]; then
+                                        echo "Descargando Terraform..."
+                                        wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                        unzip -o -q terraform_1.6.2_linux_amd64.zip
+                                    fi
                                     chmod +x terraform
                                     export PATH=$(pwd):$PATH
+                                    echo "Terraform version: $(./terraform version)"
                                 fi
 
                                 export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
@@ -255,11 +263,15 @@ pipeline {
                             sh '''
                                 # Asegurar que Terraform esté disponible
                                 if ! command -v terraform &> /dev/null; then
-                                    echo "Instalando Terraform..."
-                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
-                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    echo "Configurando Terraform..."
+                                    if [ ! -f terraform ]; then
+                                        echo "Descargando Terraform..."
+                                        wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                        unzip -o -q terraform_1.6.2_linux_amd64.zip
+                                    fi
                                     chmod +x terraform
                                     export PATH=$(pwd):$PATH
+                                    echo "Terraform version: $(./terraform version)"
                                 fi
 
                                 if [ -f "tfplan" ]; then
