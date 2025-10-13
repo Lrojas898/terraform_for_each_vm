@@ -125,7 +125,7 @@ pipeline {
                                 az login --service-principal \
                                     --username ${ARM_CLIENT_ID} \
                                     --password ${ARM_CLIENT_SECRET} \
-                                    --tenant ${ARM_TENANT_ID}
+                                    --tenant e994072b-523e-4bfe-86e2-442c5e10b244
 
                                 echo "✓ Autenticado exitosamente con Service Principal"
 
