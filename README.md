@@ -1,103 +1,218 @@
-# Terraform Azure Infrastructure con Backend Remoto
+# Terraform Azure Infrastructure - DevOps Automation
 
 **Autor**: LUIS MANUEL ROJAS CORREA
 **Código**: A00399289
-**Proyecto**: DevOps Infrastructure as Code
 
 ## Descripción
 
-Este repositorio contiene la definición de infraestructura como código (IaC) para el despliegue de máquinas virtuales en Azure usando Terraform con backend remoto en Azure Storage para gestión de estado centralizada.
+Infraestructura como código (IaC) para el despliegue automatizado de máquinas virtuales en Azure usando Terraform. Incluye backend remoto en Azure Storage, pipeline CI/CD para gestión de infraestructura y scripts de automatización para operaciones DevOps.
 
-## Arquitectura Multi-Repositorio
+## Arquitectura del Sistema
 
-Este repositorio forma parte de una arquitectura DevOps que utiliza 3 repositorios independientes:
+### Componentes de Infraestructura
 
-1. **[Teclado](https://github.com/Lrojas898/Teclado)**: Código fuente de la aplicación web
-2. **[ansible-pipeline](https://github.com/Lrojas898/ansible-pipeline)**: Configuración del pipeline CI/CD
-3. **[terraform_for_each_vm](https://github.com/Lrojas898/terraform_for_each_vm)** (este repo): Infraestructura como código
+**Infraestructura Principal:**
+- **Resource Group**: devops-rg (Chile Central)
+- **Virtual Network**: devops-network (10.0.0.0/16)
+- **Subnet**: devops-subnet (10.0.1.0/24)
+- **Network Security Group**: Reglas SSH, HTTP, SonarQube
 
-## ✨ Nuevas Características - Azure Storage Backend
+**Máquinas Virtuales Desplegadas:**
+1. **jenkins-machine** (68.211.125.173)
+   - Rol: CI/CD Server
+   - OS: Ubuntu 16.04 LTS
+   - Size: Standard_DS1_v2
+   - Servicios: Jenkins (puerto 80), SonarQube (puerto 9000)
 
-### Estado Remoto Centralizado
-- **Backend**: Azure Storage Account
-- **Ventajas**:
-  - Estado compartido entre equipos
-  - Locking automático para prevenir conflictos
-  - Backup automático y versionado
-  - Detección de drift de infraestructura
+2. **nginx-machine** (68.211.125.160)
+   - Rol: Web Server
+   - OS: Ubuntu 16.04 LTS
+   - Size: Standard_DS1_v2
+   - Servicios: Nginx (puerto 80)
 
-### Configuración del Backend
-```hcl
-backend "azurerm" {
-  resource_group_name  = "devops-terraform-state-rg"
-  storage_account_name = "devopsterraformstate001"
-  container_name       = "tfstate"
-  key                  = "devops-infrastructure.tfstate"
-}
+**Backend de Estado:**
+- **Resource Group**: devops-terraform-state-rg
+- **Storage Account**: devopsterraformstate001
+- **Container**: tfstate
+- **State File**: devops-infrastructure.tfstate
+
+### Arquitectura de Red
+
+```
+Azure Subscription (44127b49-3951-4881-8cf2-9cff7a88e6ca)
+├── devops-rg (Resource Group)
+│   ├── devops-network (VNet: 10.0.0.0/16)
+│   │   └── devops-subnet (10.0.1.0/24)
+│   ├── devops-sg (Network Security Group)
+│   │   ├── SSH (port 22)
+│   │   ├── HTTP (port 80)
+│   │   └── SonarQube (port 9000)
+│   ├── jenkins-machine (VM)
+│   │   ├── jenkins-nic (Network Interface)
+│   │   └── jenkins-public-ip (Static IP)
+│   └── nginx-machine (VM)
+│       ├── nginx-nic (Network Interface)
+│       └── nginx-public-ip (Static IP)
+└── devops-terraform-state-rg (Backend)
+    └── devopsterraformstate001 (Storage Account)
 ```
 
-## Estructura del Proyecto
+## Estructura del Repositorio
 
 ```
 terraform_for_each_vm/
-├── main.tf                    # Recursos principales
-├── providers.tf               # Proveedor Azure + Backend
+├── main.tf                    # Recursos principales (RG, VNet, Subnet)
+├── providers.tf               # Proveedor Azure + Backend configuration
 ├── variables.tf               # Definición de variables
-├── terraform.tfvars           # Valores de variables
-├── outputs.tf                 # Outputs del proyecto
-├── backend.tf                 # Documentación backend
-├── modules/                   # Módulos reutilizables
-│   └── vm/                   # Módulo de VMs
-├── setup-backend.sh          # ✨ Script configuración backend
-├── migrate-state.sh          # ✨ Script migración de estado
-├── drift-detection.sh        # ✨ Script detección de drift
-└── README.md                 # Esta documentación
+├── terraform.tfvars           # Valores de configuración
+├── outputs.tf                 # Outputs de IPs públicas
+├── backend.tf                 # Documentación del backend
+├── modules/
+│   └── vm/
+│       ├── main.tf            # VMs, IPs, NICs, NSG
+│       ├── variables.tf       # Variables del módulo
+│       └── outputs.tf         # Outputs de IPs
+├── setup-backend.sh           # Script configuración backend
+├── drift-detection.sh         # Script detección de drift
+├── azure-credentials.sh       # Script configuración credenciales
+├── Jenkinsfile                # Pipeline CI/CD infraestructura
+├── .terraform.lock.hcl        # Lock file de providers
+└── README.md                  # Esta documentación
 ```
 
-## Scripts de Automatización
+## Pipeline CI/CD - Jenkins
 
-### 1. 🚀 Setup Backend (`setup-backend.sh`)
-Configura automáticamente el Azure Storage Account para el backend:
+### Configuración del Pipeline
 
+**Trigger del Pipeline:**
+```groovy
+triggers {
+    GenericTrigger(
+        token: 'terraform-webhook-token',
+        regexpFilterExpression: 'refs/heads/main,https://github.com/Lrojas898/terraform_for_each_vm'
+    )
+}
+```
+
+**Variables de Entorno:**
+```groovy
+environment {
+    TF_WORK_DIR = "${env.WORKSPACE}/terraform-workspace"
+    TF_VAR_subscription_id = '44127b49-3951-4881-8cf2-9cff7a88e6ca'
+    TERRAFORM_REPO = 'https://github.com/Lrojas898/terraform_for_each_vm.git'
+    TF_BACKEND_RESOURCE_GROUP = 'devops-terraform-state-rg'
+    TF_BACKEND_STORAGE_ACCOUNT = 'devopsterraformstate001'
+    TF_BACKEND_CONTAINER = 'tfstate'
+    TF_BACKEND_KEY = 'devops-infrastructure.tfstate'
+}
+```
+
+### Stages del Pipeline
+
+#### Stage 1: Checkout
+**Propósito**: Clonar repositorio Terraform desde GitHub
+
+**Proceso:**
+- Checkout del repositorio terraform_for_each_vm
+- Creación de workspace aislado para Terraform
+- Copia de archivos .tf al workspace temporal
+- Información de commit y branch
+
+**Duración**: 5-8 segundos
+
+#### Stage 2: Terraform Setup & Validate
+**Propósito**: Instalar Terraform y validar configuración
+
+**Proceso:**
+- Instalación automática de Terraform 1.6.2 si no existe
+- Inicialización sin backend para validación
+- Validación de sintaxis con `terraform validate`
+- Verificación y corrección de formato con `terraform fmt`
+
+**Comando de validación:**
 ```bash
-./setup-backend.sh
+terraform init -backend=false
+terraform validate
+terraform fmt -check -recursive
 ```
 
-**Funcionalidades**:
-- Crea Resource Group para estado de Terraform
-- Crea Storage Account seguro con cifrado
-- Configura Container para tfstate
-- Genera configuración automática
+**Duración**: 10-15 segundos
 
-### 2. 🔄 Migración de Estado (`migrate-state.sh`)
-Migra el estado local a Azure Storage Backend:
+#### Stage 3: Setup Azure Backend
+**Propósito**: Configurar autenticación Azure y backend remoto
 
+**Proceso:**
+- Instalación de Azure CLI si no existe
+- Autenticación con Service Principal
+- Verificación de Storage Account backend
+- Obtención de credenciales de acceso (ARM_ACCESS_KEY)
+- Ejecución de setup-backend.sh si es necesario
+
+**Autenticación:**
 ```bash
-./migrate-state.sh
+az login --service-principal \
+    --username ${ARM_CLIENT_ID} \
+    --password ${ARM_CLIENT_SECRET} \
+    --tenant e994072b-523e-4bfe-86e2-442c5e10b244
 ```
 
-**Funcionalidades**:
-- Backup automático del estado local
-- Migración segura a backend remoto
-- Verificación de conectividad
-- Configuración de credenciales
+**Duración**: 20-30 segundos
 
-### 3. 🔍 Detección de Drift (`drift-detection.sh`)
-Detecta cambios no gestionados en la infraestructura:
+#### Stage 4: Terraform Initialize
+**Propósito**: Inicializar Terraform con backend remoto
 
+**Proceso:**
+- Configuración de ARM_ACCESS_KEY desde archivo
+- Inicialización con backend de Azure Storage
+- Verificación de conectividad con estado remoto
+- Listado de recursos en estado remoto
+
+**Comando:**
 ```bash
-./drift-detection.sh
+export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
+terraform init -reconfigure
+terraform state list
 ```
 
-**Funcionalidades**:
-- Comparación estado vs realidad
-- Reportes en texto y JSON
-- Integración con CI/CD
-- Alertas automáticas
+**Duración**: 8-12 segundos
 
-## Configuración Inicial
+#### Stage 5: Terraform Plan
+**Propósito**: Generar plan de ejecución y detectar cambios
 
-### Variables de Configuración
+**Proceso:**
+- Ejecución de script drift-detection.sh
+- Refresh del estado desde Azure
+- Generación de plan con terraform plan -detailed-exitcode
+- Análisis de códigos de salida (0: sin cambios, 1: error, 2: cambios detectados)
+- Guardado del plan en archivo tfplan
+
+**Códigos de salida:**
+- **0**: No hay cambios que aplicar
+- **1**: Error en la generación del plan
+- **2**: Cambios detectados, plan generado exitosamente
+
+**Duración**: 15-25 segundos
+
+#### Stage 6: Terraform Apply
+**Propósito**: Aplicar cambios de infraestructura
+
+**Proceso:**
+- Verificación de existencia del archivo tfplan
+- Aplicación automática del plan aprobado
+- Mostrar outputs de la infraestructura
+- Confirmación de aplicación exitosa
+
+**Comando:**
+```bash
+terraform apply -auto-approve tfplan
+terraform output
+```
+
+**Duración**: 60-180 segundos (dependiendo de cambios)
+
+## Configuración de Variables
+
+### terraform.tfvars
 ```hcl
 region = "Chile Central"
 user = "adminuser"
@@ -106,182 +221,270 @@ prefix_name = "devops"
 servers = ["jenkins", "nginx"]
 ```
 
-## Flujo de Trabajo Recomendado
+### Variables Definidas
+```hcl
+variable "region" {
+    type = string
+    description = "región de despliegue en Azure"
+}
 
-### 1. Configuración Inicial (Solo una vez)
+variable "servers" {
+    type = set(string)
+    description = "lista de servidores a desplegar"
+}
+```
+
+## Módulo VM - Uso de for_each
+
+### Recursos Creados con for_each
+```hcl
+resource "azurerm_public_ip" "devops_ip" {
+    for_each = var.servers  # jenkins, nginx
+    name = "${each.value}-public-ip"
+    allocation_method = "Static"
+    sku = "Standard"
+}
+
+resource "azurerm_linux_virtual_machine" "vm_devops" {
+    for_each = var.servers
+    name = "${each.value}-machine"
+    size = var.size_servers
+    admin_username = var.user
+    admin_password = var.password
+    disable_password_authentication = false
+}
+```
+
+### Network Security Group
+```hcl
+security_rule {
+    name = "SSH"
+    priority = 1001
+    protocol = "Tcp"
+    destination_port_range = "22"
+}
+
+security_rule {
+    name = "HTTP"
+    priority = 1002
+    protocol = "Tcp"
+    destination_port_range = "80"
+}
+
+security_rule {
+    name = "Sonar"
+    priority = 1003
+    protocol = "Tcp"
+    destination_port_range = "9000"
+}
+```
+
+## Scripts de Automatización
+
+### setup-backend.sh
+**Propósito**: Configurar Azure Storage Backend automáticamente
+
+**Funcionalidades:**
+- Crear Resource Group para estado Terraform
+- Crear Storage Account seguro con cifrado
+- Configurar Container para archivos tfstate
+- Generar configuración de backend
+
+### drift-detection.sh
+**Propósito**: Detectar cambios no gestionados en infraestructura
+
+**Funcionalidades:**
+- Comparar estado Terraform vs realidad Azure
+- Generar reportes de drift en formato texto y JSON
+- Códigos de salida para integración CI/CD
+- Almacenamiento de reportes con timestamp
+
+### azure-credentials.sh
+**Propósito**: Configurar credenciales Azure para automatización
+
+**Funcionalidades:**
+- Configurar Service Principal
+- Exportar variables de entorno ARM_*
+- Validar permisos de suscripción
+
+## Backend Remoto - Azure Storage
+
+### Configuración
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "devops-terraform-state-rg"
+    storage_account_name = "devopsterraformstate001"
+    container_name       = "tfstate"
+    key                  = "devops-infrastructure.tfstate"
+  }
+}
+```
+
+### Ventajas del Backend Remoto
+- **Estado compartido**: Múltiples usuarios pueden trabajar
+- **Locking**: Previene ejecuciones concurrentes
+- **Backup automático**: Azure Storage con redundancia
+- **Versionado**: Historial de cambios de estado
+- **Seguridad**: Cifrado en tránsito y reposo
+
+## Comandos de Operación
+
+### Despliegue Inicial
 ```bash
-# 1. Configurar backend remoto
+# 1. Configurar backend (solo primera vez)
 ./setup-backend.sh
 
-# 2. Migrar estado existente (si aplica)
-./migrate-state.sh
-
-# 3. Inicializar con backend remoto
+# 2. Inicializar Terraform
 terraform init
+
+# 3. Planificar despliegue
+terraform plan -out=tfplan
+
+# 4. Aplicar cambios
+terraform apply tfplan
 ```
 
-### 2. Trabajo Diario
+### Operaciones Diarias
 ```bash
-# 1. Detectar drift antes de cambios
+# Detectar drift
 ./drift-detection.sh
 
-# 2. Planificar cambios
-terraform plan
-
-# 3. Aplicar cambios
-terraform apply
-
-# 4. Verificar estado post-cambios
-./drift-detection.sh
-```
-
-## Recursos Creados
-
-### 1. Infraestructura Principal
-- **Resource Group**: `devops-rg`
-- **Virtual Network**: `devops-network` (10.0.0.0/16)
-- **Subnet**: `devops-subnet` (10.0.1.0/24)
-
-### 2. Máquinas Virtuales
-- **jenkins-machine** (68.211.125.173):
-  - Jenkins CI/CD Server (puerto 80)
-  - SonarQube Quality Gate (puerto 9000)
-  - Ubuntu 22.04 LTS, 4GB RAM
-
-- **nginx-machine** (68.211.125.160):
-  - Servidor web Nginx (puerto 80)
-  - Destino de despliegue
-  - Ubuntu 22.04 LTS, 2GB RAM
-
-### 3. Backend de Estado (Nuevo)
-- **Resource Group**: `devops-terraform-state-rg`
-- **Storage Account**: `devopsterraformstate001`
-- **Container**: `tfstate`
-- **Cifrado**: TLS 1.2, acceso privado
-
-## Comandos Útiles
-
-### Estado y Gestión
-```bash
-# Listar recursos gestionados
+# Ver estado actual
 terraform state list
+terraform show
 
-# Ver estado de un recurso específico
-terraform state show azurerm_resource_group.main
-
-# Refresh estado desde Azure
+# Actualizar desde Azure
 terraform refresh
 
+# Destruir recursos (cuidado)
+terraform destroy
+```
+
+### Gestión de Estado
+```bash
+# Ver recursos en estado
+terraform state list
+
+# Mostrar recurso específico
+terraform state show azurerm_linux_virtual_machine.vm_devops[\"jenkins\"]
+
 # Importar recurso existente
-terraform import azurerm_resource_group.example /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example
+terraform import azurerm_resource_group.main /subscriptions/44127b49-3951-4881-8cf2-9cff7a88e6ca/resourceGroups/devops-rg
+
+# Mover recurso en estado
+terraform state mv azurerm_resource_group.old azurerm_resource_group.new
 ```
 
-### Detección de Problemas
+## Integración con Ecosistema DevOps
+
+### Relación con Otros Repositorios
+
+**terraform_for_each_vm (este repo)**:
+- Despliega infraestructura base en Azure
+- Crea VMs jenkins-machine y nginx-machine
+- Configura red y seguridad
+
+**ansible-pipeline**:
+- Usa las VMs creadas por Terraform
+- Instala y configura Jenkins y SonarQube
+- Ejecuta pipeline CI/CD de aplicaciones
+
+**Teclado**:
+- Se despliega en nginx-machine (creada por Terraform)
+- Pipeline ejecuta en jenkins-machine (creada por Terraform)
+- Usa infraestructura gestionada por este repositorio
+
+### Flujo de Dependencias
+```
+1. terraform_for_each_vm → Crea infraestructura
+2. ansible-pipeline → Configura servicios
+3. Teclado → Despliega aplicación
+```
+
+## Monitoreo y Troubleshooting
+
+### URLs de Acceso
+- **Jenkins**: http://68.211.125.173 (VM creada por Terraform)
+- **SonarQube**: http://68.211.125.173:9000 (VM creada por Terraform)
+- **Aplicación**: http://68.211.125.160 (VM creada por Terraform)
+
+### Verificación de Recursos
 ```bash
-# Validar configuración
-terraform validate
+# Verificar VMs desde Azure CLI
+az vm list --resource-group devops-rg --output table
 
-# Formatear código
-terraform fmt
+# Ver IPs públicas
+az network public-ip list --resource-group devops-rg --output table
 
-# Verificar drift
-./drift-detection.sh
+# Estado de red
+az network nsg list --resource-group devops-rg --output table
 
-# Plan con salida detallada
-terraform plan -detailed-exitcode
+# Verificar backend storage
+az storage account show --name devopsterraformstate001 --resource-group devops-terraform-state-rg
 ```
 
-## Integración con CI/CD
+### Problemas Comunes
 
-### Pipeline de Infraestructura
-```yaml
-# Ejemplo de integración en Azure DevOps/GitHub Actions
-- name: Drift Detection
-  run: |
-    cd terraform_for_each_vm
-    ./drift-detection.sh
+#### 1. Error de autenticación Azure
+**Síntoma**: "Error: authentication failed"
+**Causa**: Credenciales Service Principal incorrectas
+**Solución**: Verificar ARM_CLIENT_ID y ARM_CLIENT_SECRET
 
-- name: Terraform Plan
-  run: terraform plan -detailed-exitcode
+#### 2. Backend storage no accesible
+**Síntoma**: "Error: Failed to get existing workspaces"
+**Causa**: ARM_ACCESS_KEY incorrecta o Storage Account no existe
+**Solución**: Ejecutar setup-backend.sh para recrear backend
 
-- name: Terraform Apply
-  run: terraform apply -auto-approve
-  if: github.ref == 'refs/heads/main'
-```
+#### 3. Terraform state locked
+**Síntoma**: "Error: Error acquiring the state lock"
+**Causa**: Proceso previo interrumpido sin liberar lock
+**Solución**: `terraform force-unlock <LOCK_ID>`
 
-## Monitoreo y Alertas
+#### 4. Drift detectado
+**Síntoma**: Script drift-detection.sh retorna código 2
+**Causa**: Cambios manuales en Azure no reflejados en Terraform
+**Solución**: Revisar cambios y ejecutar `terraform plan` y `terraform apply`
 
-### Códigos de Salida Drift Detection
-- **0**: Sin drift, infraestructura estable
-- **1**: Error en la ejecución
-- **2**: Drift detectado, requiere atención
+## Métricas del Pipeline
 
-### Archivos de Reporte
-- `drift-reports/drift-plan-TIMESTAMP.txt`: Plan detallado
-- `drift-reports/drift-report-TIMESTAMP.json`: Reporte estructurado
+### Rendimiento
+- **Tiempo total promedio**: 3-5 minutos
+- **Tiempo por stage**:
+  - Checkout: 5-8s
+  - Validate: 10-15s
+  - Setup Backend: 20-30s
+  - Initialize: 8-12s
+  - Plan: 15-25s
+  - Apply: 60-180s (según cambios)
 
-## Troubleshooting
+### Frecuencia de Uso
+- **Deploy inicial**: Una vez por proyecto
+- **Updates de infraestructura**: Según necesidades
+- **Drift detection**: Diario via cron o pipeline
 
-### Backend No Configurado
-```bash
-Error: Backend initialization required
-Solución: ./setup-backend.sh
-```
+## Seguridad y Mejores Prácticas
 
-### Error de Credenciales
-```bash
-Error: storage account key not found
-Solución: az login && export ARM_ACCESS_KEY=$(az storage account keys list ...)
-```
+### Seguridad Implementada
+- Service Principal con permisos mínimos necesarios
+- Credenciales almacenadas en Jenkins credentials store
+- Backend storage con cifrado TLS 1.2
+- Network Security Groups restrictivos
+- Passwords seguros para VMs
 
-### Conflicto de Estado
-```bash
-Error: Error acquiring the state lock
-Solución: terraform force-unlock <LOCK_ID>
-```
+### Mejores Prácticas Aplicadas
+- Uso de módulos para reutilización
+- Variables centralizadas en terraform.tfvars
+- Backend remoto para trabajo colaborativo
+- Versionado de estado con Azure Storage
+- Scripts automatizados para operaciones comunes
+- Pipeline CI/CD para cambios controlados
 
-### Drift Detectado
-```bash
-Status: DRIFT DETECTADO
-Acción: Revisar cambios y ejecutar terraform apply
-```
+### Próximas Mejoras
+- Implementar Azure Key Vault para secretos
+- Agregar tags de costos y ownership
+- Configurar backup policies automatizadas
+- Implementar multi-environment (dev, staging, prod)
+- Agregar monitoring con Azure Monitor
 
-## Mejores Prácticas Implementadas
-
-### 1. Seguridad
-- ✅ Estado remoto cifrado
-- ✅ Credenciales mediante Azure CLI
-- ✅ Network Security Groups configurados
-- ✅ Backup automático de estado
-
-### 2. Operaciones
-- ✅ Scripts de automatización
-- ✅ Detección de drift automatizada
-- ✅ Reportes estructurados
-- ✅ Integración CI/CD ready
-
-### 3. Mantenimiento
-- ✅ Backup automático antes de cambios
-- ✅ Versionado de estado
-- ✅ Documentación actualizada
-- ✅ Validación de configuración
-
-## Estado Actual
-
-✅ **Backend Remoto**: Configurado y funcionando
-✅ **Scripts de Automatización**: Implementados
-✅ **Detección de Drift**: Operativa
-✅ **Infraestructura**: Desplegada en Chile Central
-✅ **Integración**: Lista para CI/CD
-
-### Última Actualización
-- **Fecha**: Octubre 2025
-- **Cambios**: Azure Storage Backend implementado
-- **Status**: ✅ PRODUCCIÓN - FUNCIONANDO
-
-## URLs de Acceso
-
-- **Jenkins**: http://68.211.125.173
-- **SonarQube**: http://68.211.125.173:9000
-- **Aplicación**: http://68.211.125.160
-# Test trigger for Jenkins pipeline
+Este repositorio demuestra la implementación de Infrastructure as Code con Terraform siguiendo las mejores prácticas de DevOps, incluyendo automatización, seguridad y gestión colaborativa de infraestructura.
