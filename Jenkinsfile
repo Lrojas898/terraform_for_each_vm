@@ -55,7 +55,7 @@ pipeline {
 
                         # Copiar archivos del repositorio, excluyendo el directorio de destino
                         echo "Copiando archivos de Terraform..."
-                        find . -maxdepth 1 -mindepth 1 -not -name "terraform-workspace" -exec cp -r {} "${TF_WORKSPACE}/" \;
+                        find . -maxdepth 1 -mindepth 1 -not -name "terraform-workspace" -exec cp -r {} "${TF_WORKSPACE}/" \\;
 
                         echo "Archivos disponibles en workspace de Terraform:"
                         ls -la ${TF_WORKSPACE}/
