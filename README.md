@@ -9,6 +9,11 @@ Infraestructura como código (IaC) para el despliegue automatizado de máquinas 
 
 ## Arquitectura del Sistema
 
+
+<img width="1912" height="1012" alt="image" src="https://github.com/user-attachments/assets/584c3266-ad61-45cc-af1d-52ea73ae7492" />
+
+
+
 ### Componentes de Infraestructura
 
 **Infraestructura Principal:**
@@ -18,17 +23,26 @@ Infraestructura como código (IaC) para el despliegue automatizado de máquinas 
 - **Network Security Group**: Reglas SSH, HTTP, SonarQube
 
 **Máquinas Virtuales Desplegadas:**
+
+<img width="1903" height="978" alt="image" src="https://github.com/user-attachments/assets/c8aabc7d-9ebd-44b1-931d-15db6242aada" />
+
+
 1. **jenkins-machine** (68.211.125.173)
    - Rol: CI/CD Server
    - OS: Ubuntu 16.04 LTS
    - Size: Standard_DS1_v2
    - Servicios: Jenkins (puerto 80), SonarQube (puerto 9000)
+  
+<img width="1903" height="1012" alt="image" src="https://github.com/user-attachments/assets/e63e4d50-1397-4f89-964d-f2f62ffa512f" />
+
 
 2. **nginx-machine** (68.211.125.160)
    - Rol: Web Server
    - OS: Ubuntu 16.04 LTS
    - Size: Standard_DS1_v2
    - Servicios: Nginx (puerto 80)
+
+<img width="1907" height="1012" alt="image" src="https://github.com/user-attachments/assets/51550966-17f6-45a5-8b5b-e2f53b0ddd8e" />
 
 **Backend de Estado:**
 - **Resource Group**: devops-terraform-state-rg
@@ -81,6 +95,9 @@ terraform_for_each_vm/
 ```
 
 ## Pipeline CI/CD - Jenkins
+
+<img width="1912" height="1041" alt="image" src="https://github.com/user-attachments/assets/c625939a-f0f7-4de7-acad-029c27de7f75" />
+
 
 ### Configuración del Pipeline
 
