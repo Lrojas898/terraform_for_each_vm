@@ -24,7 +24,7 @@ pipeline {
     }
 
     environment {
-        TF_WORKSPACE = "${env.WORKSPACE}/terraform-workspace"
+        TF_WORK_DIR = "${env.WORKSPACE}/terraform-workspace"
         TF_VAR_subscription_id = '44127b49-3951-4881-8cf2-9cff7a88e6ca' // RECOMENDACIÓN: Usar credenciales de Jenkins
         TERRAFORM_REPO = 'https://github.com/Lrojas898/terraform_for_each_vm.git'
         TF_BACKEND_RESOURCE_GROUP = 'devops-terraform-state-rg'
@@ -50,15 +50,15 @@ pipeline {
                         echo "Commit actual: ${GIT_COMMIT}"
 
                         # Limpiar y crear workspace de Terraform
-                        rm -rf ${TF_WORKSPACE}
-                        mkdir -p ${TF_WORKSPACE}
+                        rm -rf ${TF_WORK_DIR}
+                        mkdir -p ${TF_WORK_DIR}
 
                         # Copiar archivos del repositorio, excluyendo el directorio de destino
                         echo "Copiando archivos de Terraform..."
-                        find . -maxdepth 1 -mindepth 1 -not -name "terraform-workspace" -exec cp -r {} "${TF_WORKSPACE}/" \\;
+                        find . -maxdepth 1 -mindepth 1 -not -name "terraform-workspace" -exec cp -r {} "${TF_WORK_DIR}/" \\;
 
                         echo "Archivos disponibles en workspace de Terraform:"
-                        ls -la ${TF_WORKSPACE}/
+                        ls -la ${TF_WORK_DIR}/
                     '''
                 }
             }
@@ -66,7 +66,7 @@ pipeline {
 
         stage('Terraform Setup & Validate') {
             steps {
-                dir(env.TF_WORKSPACE) {
+                dir(env.TF_WORK_DIR) {
                     echo 'VALIDATE - Validando sintaxis y formato de archivos Terraform'
                     script {
                         sh '''
@@ -98,7 +98,7 @@ pipeline {
 
         stage('Setup Azure Backend') {
             steps {
-                dir(env.TF_WORKSPACE) {
+                dir(env.TF_WORK_DIR) {
                     echo 'BACKEND - Configurando backend de Azure Storage'
                     script {
                         withCredentials([
@@ -160,7 +160,7 @@ pipeline {
 
         stage('Terraform Initialize') {
             steps {
-                dir(env.TF_WORKSPACE) {
+                dir(env.TF_WORK_DIR) {
                     echo 'INIT - Inicializando Terraform con backend remoto'
                     script {
                         withCredentials([
@@ -188,7 +188,7 @@ pipeline {
 
         stage('Terraform Plan') {
             steps {
-                dir(env.TF_WORKSPACE) {
+                dir(env.TF_WORK_DIR) {
                     echo 'PLAN - Generando plan de ejecución de Terraform'
                     script {
                         withCredentials([
@@ -227,7 +227,7 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                dir(env.TF_WORKSPACE) {
+                dir(env.TF_WORK_DIR) {
                     echo 'APPLY - Aplicando cambios de infraestructura'
                     script {
                         withCredentials([
