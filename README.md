@@ -101,6 +101,9 @@ terraform_for_each_vm/
 
 ### Configuración del Pipeline
 
+<img width="1912" height="965" alt="image" src="https://github.com/user-attachments/assets/3831551d-acc0-4066-8349-e5f78fe64a44" />
+
+
 **Trigger del Pipeline:**
 ```groovy
 triggers {
