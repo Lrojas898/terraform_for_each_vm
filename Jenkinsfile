@@ -168,6 +168,15 @@ pipeline {
                             string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
                         ]) {
                             sh '''
+                                # Asegurar que Terraform esté disponible
+                                if ! command -v terraform &> /dev/null; then
+                                    echo "Instalando Terraform..."
+                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    chmod +x terraform
+                                    export PATH=$(pwd):$PATH
+                                fi
+
                                 export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
                                 if [ -z "$ARM_ACCESS_KEY" ]; then
                                     echo "❌ No se pudo obtener la ARM_ACCESS_KEY."
@@ -196,6 +205,15 @@ pipeline {
                             string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
                         ]) {
                             sh '''
+                                # Asegurar que Terraform esté disponible
+                                if ! command -v terraform &> /dev/null; then
+                                    echo "Instalando Terraform..."
+                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    chmod +x terraform
+                                    export PATH=$(pwd):$PATH
+                                fi
+
                                 export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
 
                                 if [ -f "./drift-detection.sh" ]; then
@@ -235,6 +253,15 @@ pipeline {
                             string(credentialsId: 'azure-client-secret', variable: 'ARM_CLIENT_SECRET')
                         ]) {
                             sh '''
+                                # Asegurar que Terraform esté disponible
+                                if ! command -v terraform &> /dev/null; then
+                                    echo "Instalando Terraform..."
+                                    wget -q https://releases.hashicorp.com/terraform/1.6.2/terraform_1.6.2_linux_amd64.zip
+                                    unzip -q terraform_1.6.2_linux_amd64.zip
+                                    chmod +x terraform
+                                    export PATH=$(pwd):$PATH
+                                fi
+
                                 if [ -f "tfplan" ]; then
                                     export ARM_ACCESS_KEY=$(cat ${ARM_ACCESS_KEY_FILE})
                                     echo "Aplicando plan de Terraform..."
