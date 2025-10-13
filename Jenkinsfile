@@ -232,17 +232,26 @@ pipeline {
 
                                 echo "Actualizando estado desde Azure y generando plan..."
                                 terraform refresh
+
+                                # terraform plan con -detailed-exitcode retorna 2 cuando hay cambios (éxito)
+                                set +e  # Permitir exit codes no-zero temporalmente
                                 terraform plan -detailed-exitcode -out=tfplan
                                 PLAN_EXIT_CODE=$?
+                                set -e  # Restaurar exit-on-error
 
                                 case $PLAN_EXIT_CODE in
-                                    0) echo "✓ No hay cambios que aplicar" ;;
-                                    1) echo "❌ Error en la generación del plan"; exit 1 ;;
+                                    0)
+                                        echo "✓ No hay cambios que aplicar"
+                                        ;;
+                                    1)
+                                        echo "❌ Error en la generación del plan"
+                                        exit 1
+                                        ;;
                                     2)
-                                      echo "⚠️ Cambios detectados - Plan generado exitosamente"
-                                      terraform show -no-color tfplan > plan-output.txt
-                                      echo "Plan guardado en: plan-output.txt"
-                                      ;;
+                                        echo "⚠️ Cambios detectados - Plan generado exitosamente"
+                                        terraform show -no-color tfplan > plan-output.txt
+                                        echo "Plan guardado en: plan-output.txt"
+                                        ;;
                                 esac
                             '''
                         }
