@@ -3,6 +3,9 @@
 **Autor**: LUIS MANUEL ROJAS CORREA
 **Código**: A00399289
 
+**Colab**: RAFAELA SOFIA RUIZ PIZARRO
+**Código**: A00395368
+
 ## Descripción
 
 Infraestructura como código (IaC) para el despliegue automatizado de máquinas virtuales en Azure usando Terraform. Incluye backend remoto en Azure Storage, pipeline CI/CD para gestión de infraestructura y scripts de automatización para operaciones DevOps.
